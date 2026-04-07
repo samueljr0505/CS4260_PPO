@@ -15,7 +15,7 @@ def coordination_metric(env):
     positions = []
 
     for i in range(n_agents):
-        start = i * 8   # 👈 IMPORTANT: stride depends on MPE layout
+        start = i * 8   # IMPORTANT: stride depends on MPE layout
         pos = state[start:start+pos_dim]
         positions.append(pos)
 

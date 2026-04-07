@@ -28,7 +28,7 @@ def run_episode(env, model, buffer, max_steps=25):
         logprobs = {}
         values = {}
 
-        # ❗ SINGLE OBS (intentionally weak baseline)
+        # SINGLE OBS (intentionally weak baseline)
         obs = torch.tensor(obs_dict[agents[0]], dtype=torch.float32)
 
         action, logprob = model.get_action(obs)
@@ -59,7 +59,7 @@ def run_episode(env, model, buffer, max_steps=25):
 
         obs_dict = next_obs
         ep_reward += reward
-        step_count += 1  # ✅ increment step counter
+        step_count += 1  #  increment step counter
 
         if done:
             break

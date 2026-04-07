@@ -5,10 +5,10 @@ class MultiAgentPPO:
     def __init__(
         self,
         model,
-        lr=3e-4,
+        lr=1e-4,
         clip=0.2,
         value_coef=0.5,
-        entropy_coef=0.01,
+        entropy_coef=0.02,
         max_grad_norm=0.5,
     ):
         self.model = model

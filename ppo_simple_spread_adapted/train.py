@@ -81,8 +81,8 @@ def collect_rollout(env, model, buffer, rollout_steps):
 def train(
     seed,
     num_agents=3,
-    updates=400,
-    rollout_steps=1024,
+    updates=500,
+    rollout_steps=2048,
     max_cycles=25,
     ppo_epochs=10,
     batch_size=256,
