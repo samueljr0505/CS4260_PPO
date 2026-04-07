@@ -20,6 +20,7 @@ def run_episode(env, model, buffer, max_steps=25):
     agents = env.agents
 
     ep_reward = 0
+    step_count = 0  # track number of steps
 
     for _ in range(max_steps):
 
@@ -58,11 +59,15 @@ def run_episode(env, model, buffer, max_steps=25):
 
         obs_dict = next_obs
         ep_reward += reward
+        step_count += 1  # ✅ increment step counter
 
         if done:
             break
 
-    return ep_reward
+    #compute average step reward
+    avg_reward = ep_reward / step_count
+
+    return avg_reward
 
 
 # -----------------------------

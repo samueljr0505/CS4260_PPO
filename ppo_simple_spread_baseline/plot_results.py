@@ -48,7 +48,7 @@ plt.fill_between(
 
 plt.title("PPO Simple Spread - Reward")
 plt.xlabel("Episode")
-plt.ylabel("Total Reward")
+plt.ylabel("Average Step Reward")
 plt.legend()
 plt.tight_layout()
 plt.savefig("plots/simple_spread_reward.png", dpi=300)

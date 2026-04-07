@@ -32,18 +32,25 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 def run_random_episode(env, max_steps=25):
     obs_dict, _ = env.reset()
     agents = env.agents
+
     ep_reward = 0
+    step_count = 0  # track steps
 
     for _ in range(max_steps):
-        # Purely random actions sampled from each agent's action space
         actions = {a: env.action_space(a).sample() for a in agents}
         _, rewards, terminations, truncations, _ = env.step(actions)
-        ep_reward += sum(rewards.values())
+
+        reward = np.mean(list(rewards.values()))
+
+        ep_reward += reward
+        step_count += 1
 
         if any(terminations.values()) or any(truncations.values()):
             break
 
-    return ep_reward
+    # convert to average step reward
+    avg_reward = ep_reward / step_count
+    return avg_reward
 
 
 def run_random_baseline(n_episodes=500, seeds=[0, 1, 2]):
@@ -99,7 +106,7 @@ def plot_comparison(ppo_rewards, random_rewards, out_path):
                     alpha=0.20, color='tomato')
 
     ax.set_xlabel('Episode')
-    ax.set_ylabel('Total Reward')
+    ax.set_ylabel('Average Step Reward')
     ax.set_title('PPO Baseline vs Random Policy — Simple Spread')
     ax.legend()
     plt.tight_layout()
