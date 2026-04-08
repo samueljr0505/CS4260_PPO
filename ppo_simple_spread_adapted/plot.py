@@ -71,7 +71,7 @@ def main():
     plot_with_band(
         rewards,
         title="Multi-Agent PPO Simple Spread Reward",
-        xlabel="Update",
+        xlabel="Episode",
         ylabel="Episode Mean Reward",
         output_path=os.path.join(PLOTS_DIR, "simple_spread_reward.png"),
     )
@@ -80,7 +80,7 @@ def main():
     plot_with_band(
         success,
         title="Multi-Agent PPO Simple Spread Success Rate",
-        xlabel="Update",
+        xlabel="Episode",
         ylabel="Success Rate",
         output_path=os.path.join(PLOTS_DIR, "simple_spread_success.png"),
     )
