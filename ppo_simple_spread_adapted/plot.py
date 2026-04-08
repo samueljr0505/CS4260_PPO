@@ -22,19 +22,32 @@ def load_runs(path):
 
 
 def plot_with_band(values, title, xlabel, ylabel, output_path, y_lim=None):
+    """
+    values shape: (num_seeds, num_updates)
+    """
+
+    x = np.arange(values.shape[1])
+
     mean = values.mean(axis=0)
     std = values.std(axis=0)
-    x = np.arange(len(mean))
 
-    # clamp for stability if this is success rate
-    if "Success" in title:
-        mean = np.clip(mean, 0, 1)
-        std = np.clip(std, 0, 1)
+    plt.figure(figsize=(10, 5))
 
-    plt.figure(figsize=(9, 5))
-    plt.plot(x, mean, linewidth=2, label="Mean")
-    plt.fill_between(x, mean - std, mean + std, alpha=0.25, label="Std")
+    # -------------------------
+    # Plot individual seeds
+    # -------------------------
+    for i in range(values.shape[0]):
+        plt.plot(x, values[i], linewidth=1.2, alpha=0.5, label=f"Seed {i}")
 
+    # -------------------------
+    # Mean + Std band
+    # -------------------------
+    plt.plot(x, mean, linewidth=2.5, label="Mean", color="black")
+    plt.fill_between(x, mean - std, mean + std, alpha=0.2, color="black")
+
+    # -------------------------
+    # Formatting
+    # -------------------------
     if y_lim is not None:
         plt.ylim(y_lim)
 
