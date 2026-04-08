@@ -1,21 +1,40 @@
 import numpy as np
 
 
-def coordination_metric(obs_dict):
-    positions = []
+import numpy as np
+
+def success_rate(obs_dict, num_landmarks=3, threshold=0.2):
+    """
+    Success = every landmark is within `threshold`
+    distance of at least one agent.
+    """
+
+    if not obs_dict:
+        return 0.0
+
+    agent_pos = []
+    landmark_pos = None
 
     for obs in obs_dict.values():
         obs = np.asarray(obs, dtype=np.float32)
-        positions.append(obs[2:4])
 
-    positions = np.asarray(positions, dtype=np.float32)
+        # agent position
+        agent_pos.append(obs[2:4])
 
-    if len(positions) < 2:
-        return 0.0
+        # landmark relative positions
+        lm = obs[4:4 + 2 * num_landmarks].reshape(num_landmarks, 2)
 
-    pairwise_distances = []
-    for i in range(len(positions)):
-        for j in range(i + 1, len(positions)):
-            pairwise_distances.append(np.linalg.norm(positions[i] - positions[j]))
+        # convert relative -> absolute (consistent across agents)
+        if landmark_pos is None:
+            landmark_pos = lm + obs[2:4]
 
-    return float(np.mean(pairwise_distances))
+    agent_pos = np.array(agent_pos)
+
+    success = 0
+
+    for lm in landmark_pos:
+        dists = np.linalg.norm(agent_pos - lm, axis=1)
+        if np.min(dists) < threshold:
+            success += 1
+
+    return success / num_landmarks

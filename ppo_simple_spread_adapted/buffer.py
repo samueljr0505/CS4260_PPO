@@ -18,7 +18,7 @@ class MultiAgentRolloutBuffer:
         self.logprobs.append(logprob)
         self.rewards.append(float(reward))
         self.dones.append(float(done))
-        self.values.append(float(value))
+        self.values.append(value if isinstance(value, float) else float(value))
 
     def as_tensors(self):
         return (
@@ -31,6 +31,7 @@ class MultiAgentRolloutBuffer:
     def compute_returns_and_advantages(self, next_value=0.0, gamma=0.99, lam=0.95):
         rewards = torch.tensor(self.rewards, dtype=torch.float32)
         dones = torch.tensor(self.dones, dtype=torch.float32)
+        # next_value is now properly passed in from the caller (bootstrapped if truncated)
         values = torch.tensor(self.values + [float(next_value)], dtype=torch.float32)
 
         gae = 0.0
@@ -44,7 +45,10 @@ class MultiAgentRolloutBuffer:
             advantages.insert(0, gae)
             returns.insert(0, gae + values[t])
 
-        return torch.tensor(returns, dtype=torch.float32), torch.tensor(advantages, dtype=torch.float32)
+        return (
+            torch.tensor(returns, dtype=torch.float32),
+            torch.tensor(advantages, dtype=torch.float32),
+        )
 
     def clear(self):
         self.__init__()
