@@ -1,29 +1,40 @@
 import numpy as np
-def coordination_metric(env):
-    state = env.state()
 
-    state = np.array(state)
+import numpy as np
 
-    # Simple Spread layout:
-    # first 2 values = agent 0 position
-    # next 2 = agent 1 position
-    # next 2 = agent 2 position
+def success_rate(obs_dict, num_landmarks=3, threshold=0.2):
+    """
+    Success = every landmark is within `threshold`
+    distance of at least one agent.
+    """
 
-    n_agents = 3
-    pos_dim = 2
+    if not obs_dict:
+        return 0.0
 
-    positions = []
+    # collect agent positions
+    agent_pos = []
+    landmark_pos = None
 
-    for i in range(n_agents):
-        start = i * 8   # IMPORTANT: stride depends on MPE layout
-        pos = state[start:start+pos_dim]
-        positions.append(pos)
+    for obs in obs_dict.values():
+        obs = np.asarray(obs, dtype=np.float32)
 
-    positions = np.array(positions)
+        # agent position
+        agent_pos.append(obs[2:4])
 
-    dists = []
-    for i in range(n_agents):
-        for j in range(i+1, n_agents):
-            dists.append(np.linalg.norm(positions[i] - positions[j]))
+        # landmark relative positions
+        lm = obs[4:4 + 2 * num_landmarks].reshape(num_landmarks, 2)
 
-    return float(np.mean(dists))
+        # convert relative -> absolute (all agents agree on same landmark layout)
+        if landmark_pos is None:
+            landmark_pos = lm + obs[2:4]
+
+    agent_pos = np.array(agent_pos)
+
+    success = 0
+
+    for lm in landmark_pos:
+        dists = np.linalg.norm(agent_pos - lm, axis=1)
+        if np.min(dists) < threshold:
+            success += 1
+
+    return success / num_landmarks

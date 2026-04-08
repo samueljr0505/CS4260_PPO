@@ -48,7 +48,7 @@ plt.fill_between(
 
 plt.title("PPO Simple Spread - Reward")
 plt.xlabel("Episode")
-plt.ylabel("Average Step Reward")
+plt.ylabel("Average Reward")
 plt.legend()
 plt.tight_layout()
 plt.savefig("plots/simple_spread_reward.png", dpi=300)
@@ -67,9 +67,9 @@ plt.fill_between(
     alpha=0.3
 )
 
-plt.title("PPO Simple Spread - Coordination Metric")
+plt.title("PPO Simple Spread - Success Metric")
 plt.xlabel("Episode")
-plt.ylabel("Mean Pairwise Distance")
+plt.ylabel("Success Rate")
 plt.legend()
 plt.tight_layout()
 plt.savefig("plots/simple_spread_coordination.png", dpi=300)

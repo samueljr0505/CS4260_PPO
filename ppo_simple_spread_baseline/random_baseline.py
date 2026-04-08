@@ -33,24 +33,20 @@ def run_random_episode(env, max_steps=25):
     obs_dict, _ = env.reset()
     agents = env.agents
 
-    ep_reward = 0
-    step_count = 0  # track steps
+    ep_reward = 0.0
 
     for _ in range(max_steps):
         actions = {a: env.action_space(a).sample() for a in agents}
         _, rewards, terminations, truncations, _ = env.step(actions)
 
-        reward = np.mean(list(rewards.values()))
-
-        ep_reward += reward
-        step_count += 1
+        # SAME scaling as PPO (sum of agent rewards per step)
+        step_reward = float(sum(rewards.values()))
+        ep_reward += step_reward
 
         if any(terminations.values()) or any(truncations.values()):
             break
 
-    # convert to average step reward
-    avg_reward = ep_reward / step_count
-    return avg_reward
+    return ep_reward
 
 
 def run_random_baseline(n_episodes=500, seeds=[0, 1, 2]):

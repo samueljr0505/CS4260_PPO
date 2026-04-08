@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from model import ActorCritic
 from ppo_reprod.ppo import PPO
 from ppo_reprod.buffer import RolloutBuffer
-from utils import coordination_metric
+from utils import success_rate
 
 
 # -----------------------------
@@ -20,55 +20,54 @@ def run_episode(env, model, buffer, max_steps=25):
     agents = env.agents
 
     ep_reward = 0
-    step_count = 0  # track number of steps
 
     for _ in range(max_steps):
 
         actions = {}
-        logprobs = {}
-        values = {}
-
-        # SINGLE OBS (intentionally weak baseline)
-        obs = torch.tensor(obs_dict[agents[0]], dtype=torch.float32)
-
-        action, logprob = model.get_action(obs)
-        value = model.critic(model.shared(obs)).squeeze(-1)
-
-        # clip actions into valid space
-        action = torch.sigmoid(action)
+        obs_list = []
+        action_list = []
+        logprob_list = []
+        value_list = []
 
         for a in agents:
+            obs = torch.tensor(obs_dict[a], dtype=torch.float32)
+
+            action, logprob = model.get_action(obs)
+            value = model.critic(model.shared(obs)).squeeze(-1)
+
+            action = torch.clamp(action, -1.0, 1.0)
+
             actions[a] = action.detach().numpy()
-            logprobs[a] = logprob.detach()
-            values[a] = value.detach()
+
+            obs_list.append(obs)
+            action_list.append(action)
+            logprob_list.append(logprob)
+            value_list.append(value)
 
         next_obs, rewards, terminations, truncations, _ = env.step(actions)
 
         done = any(terminations.values()) or any(truncations.values())
-
         reward = sum(rewards.values())
 
-        buffer.add(
-            obs.detach(),
-            action.detach(),
-            logprob.detach(),
-            torch.tensor(reward, dtype=torch.float32),
-            done,
-            value.detach()
-        )
+        for obs, action, logprob, value in zip(
+            obs_list, action_list, logprob_list, value_list
+        ):
+            buffer.add(
+                obs.detach(),
+                action.detach(),
+                logprob.detach(),
+                torch.tensor(reward, dtype=torch.float32),
+                done,
+                value.detach()
+            )
 
         obs_dict = next_obs
         ep_reward += reward
-        step_count += 1  #  increment step counter
 
         if done:
             break
 
-    #compute average step reward
-    avg_reward = ep_reward / step_count
-
-    return avg_reward
-
+    return ep_reward, obs_dict
 
 # -----------------------------
 # TRAIN
@@ -98,13 +97,13 @@ def train(seed):
 
     for episode in range(1000):
 
-        ep_reward = run_episode(env, model, buffer)
+        ep_reward, obs_dict = run_episode(env, model, buffer)
 
         ppo.update(buffer)
         buffer.clear()
 
         rewards_log.append(ep_reward)
-        coord_log.append(coordination_metric(env))
+        coord_log.append(success_rate(obs_dict))
 
         if episode % 20 == 0:
             print(
