@@ -10,10 +10,9 @@ os.makedirs("plots", exist_ok=True)
 all_rewards = np.load("runs/simple_spread_rewards.npy", allow_pickle=True)
 all_coord = np.load("runs/simple_spread_coord.npy", allow_pickle=True)
 
-# If saved as (seeds, episodes)
-# shape: [num_seeds][num_episodes]
-all_rewards = [np.array(r) for r in all_rewards]
-all_coord = [np.array(c) for c in all_coord]
+# Convert to lists of arrays (one per seed)
+all_rewards = [np.array(r, dtype=np.float32) for r in all_rewards]
+all_coord = [np.array(c, dtype=np.float32) for c in all_coord]
 
 # =========================
 # ALIGN LENGTHS
@@ -24,53 +23,89 @@ all_rewards = [r[:min_len_r] for r in all_rewards]
 min_len_c = min(len(c) for c in all_coord)
 all_coord = [c[:min_len_c] for c in all_coord]
 
-# =========================
-# MEAN + STD
-# =========================
-reward_mean = np.mean(all_rewards, axis=0)
-reward_std = np.std(all_rewards, axis=0)
+# Convert to (seeds, episodes)
+all_rewards = np.stack(all_rewards, axis=0)
+all_coord = np.stack(all_coord, axis=0)
 
-coord_mean = np.mean(all_coord, axis=0)
-coord_std = np.std(all_coord, axis=0)
+# =========================
+# PLOT FUNCTION
+# =========================
+def plot_with_seeds(values, title, xlabel, ylabel, filename, y_lim=None):
+    x = np.arange(values.shape[1])
+
+    mean = values.mean(axis=0)
+    std = values.std(axis=0)
+
+    plt.figure(figsize=(10, 5))
+
+    # -------------------------
+    # Individual seeds (lighter)
+    # -------------------------
+    for i in range(values.shape[0]):
+        plt.plot(
+            x,
+            values[i],
+            linewidth=1.0,
+            alpha=0.35,
+            linestyle="--",
+            label=f"Seed {i}"
+        )
+
+    # -------------------------
+    # Mean (bold)
+    # -------------------------
+    plt.plot(x, mean, color="black", linewidth=2.8, label="Mean")
+
+    # -------------------------
+    # Std band
+    # -------------------------
+    plt.fill_between(
+        x,
+        mean - std,
+        mean + std,
+        alpha=0.2,
+        color="black"
+    )
+
+    # -------------------------
+    # Formatting improvements
+    # -------------------------
+    if y_lim is not None:
+        plt.ylim(y_lim)
+
+    plt.grid(True, linestyle="--", alpha=0.3)
+
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(filename, dpi=300)
+    plt.close()
+
 
 # =========================
 # PLOT 1: REWARD
 # =========================
-plt.figure()
-
-plt.plot(reward_mean, label="Mean Reward")
-plt.fill_between(
-    range(len(reward_mean)),
-    reward_mean - reward_std,
-    reward_mean + reward_std,
-    alpha=0.3
+plot_with_seeds(
+    all_rewards,
+    title="PPO Simple Spread - Reward",
+    xlabel="Episode",
+    ylabel="Episode Reward",
+    filename="plots/simple_spread_reward.png",
 )
 
-plt.title("PPO Simple Spread - Reward")
-plt.xlabel("Episode")
-plt.ylabel("Average Reward")
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/simple_spread_reward.png", dpi=300)
-plt.show()
-
 # =========================
-# PLOT 2: COORDINATION
+# PLOT 2: SUCCESS / COORDINATION
 # =========================
-plt.figure()
-
-plt.plot(coord_mean, label="Mean Coordination (Pairwise Distance)")
-plt.fill_between(
-    range(len(coord_mean)),
-    coord_mean - coord_std,
-    coord_mean + coord_std,
-    alpha=0.3
+plot_with_seeds(
+    all_coord,
+    title="PPO Simple Spread - Success Rate",
+    xlabel="Episode",
+    ylabel="Success Rate (0 → 1)",
+    filename="plots/simple_spread_success.png",
+    y_lim=(0, 0.6),
 )
 
-plt.title("PPO Simple Spread - Success Metric")
-plt.xlabel("Episode")
-plt.ylabel("Success Rate")
-plt.legend()
-plt.tight_layout()
-plt.savefig("plots/simple_spread_coordination.png", dpi=300)
-plt.show()
+print("Saved plots to plots/")
