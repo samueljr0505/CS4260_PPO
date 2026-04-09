@@ -31,7 +31,6 @@ class MultiAgentRolloutBuffer:
     def compute_returns_and_advantages(self, next_value=0.0, gamma=0.99, lam=0.95):
         rewards = torch.tensor(self.rewards, dtype=torch.float32)
         dones = torch.tensor(self.dones, dtype=torch.float32)
-        # next_value is now properly passed in from the caller (bootstrapped if truncated)
         values = torch.tensor(self.values + [float(next_value)], dtype=torch.float32)
 
         gae = 0.0
@@ -45,10 +44,13 @@ class MultiAgentRolloutBuffer:
             advantages.insert(0, gae)
             returns.insert(0, gae + values[t])
 
-        return (
-            torch.tensor(returns, dtype=torch.float32),
-            torch.tensor(advantages, dtype=torch.float32),
-        )
+        returns_t = torch.tensor(returns, dtype=torch.float32)
+        advantages_t = torch.tensor(advantages, dtype=torch.float32)
+
+        # Normalize returns for critic stability, but keep raw for logging
+        returns_normalized = (returns_t - returns_t.mean()) / (returns_t.std() + 1e-8)
+
+        return returns_normalized, advantages_t
 
     def clear(self):
         self.__init__()

@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-
 class MultiAgentActorCritic(nn.Module):
-    def __init__(self, obs_dim, act_dim, state_dim):
+    def __init__(self, obs_dim, act_dim, state_dim, centralized_critic=True):
         super().__init__()
+
+        self.centralized_critic = centralized_critic
 
         self.actor = nn.Sequential(
             nn.Linear(obs_dim, 128),
@@ -15,8 +16,12 @@ class MultiAgentActorCritic(nn.Module):
             nn.Linear(128, act_dim),
         )
 
+        # If centralized: critic sees global state (state_dim)
+        # If ablated:     critic sees local obs only (obs_dim) — same as basic PPO
+        critic_input_dim = state_dim if centralized_critic else obs_dim
+
         self.critic = nn.Sequential(
-            nn.Linear(state_dim, 256),
+            nn.Linear(critic_input_dim, 256),
             nn.Tanh(),
             nn.Linear(256, 256),
             nn.Tanh(),
@@ -33,12 +38,14 @@ class MultiAgentActorCritic(nn.Module):
         logprob = dist.log_prob(action)
         return action, logprob
 
-    def value(self, state):
-        return self.critic(state).squeeze(-1)
+    def value(self, state_or_obs):
+        return self.critic(state_or_obs).squeeze(-1)
 
     def evaluate(self, obs, state, action):
         dist = self.policy(obs)
         logprob = dist.log_prob(action)
         entropy = dist.entropy()
-        value = self.value(state)
+        # Use state if centralized, local obs if ablated
+        critic_input = state if self.centralized_critic else obs
+        value = self.value(critic_input)
         return logprob, value, entropy
