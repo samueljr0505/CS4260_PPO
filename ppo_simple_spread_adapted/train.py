@@ -117,7 +117,7 @@ def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3):
         next_obs, rewards, terminations, truncations, _ = env.step(action_dict)
         done = any(terminations.values()) or any(truncations.values())
         team_reward = float(sum(rewards.values()))
-        shaped_reward = team_reward #+ _coverage_bonus(next_obs, env.agents)
+        shaped_reward = team_reward + _coverage_bonus(next_obs, env.agents)
 
         # Buffer stores critic_input (state or obs) not always global state
         for obs, action, logprob in zip(cached_obs, cached_actions, cached_logprobs):
@@ -223,6 +223,11 @@ def train(
             )
 
     env.close()
+
+    os.makedirs("pt_files", exist_ok=True)
+    torch.save(model.state_dict(), f"pt_files/model_seed{seed}.pt")
+    print(f"Saved model to pt_files/model_seed{seed}.pt")
+
     if return_model:
         return episode_rewards_log, coordination_log, model
     return episode_rewards_log, coordination_log
@@ -237,9 +242,9 @@ def main():
         all_rewards.append(rewards)
         all_coords.append(coords)
 
-    os.makedirs("runs", exist_ok=True)
-    np.save("runs/simple_spread_reward_ablation_shaping.npy", np.asarray(all_rewards, dtype=np.float32))
-    np.save("runs/simple_spread_success_ablation_shaping.npy", np.asarray(all_coords, dtype=np.float32))
+    os.makedirs("pt_files", exist_ok=True)
+    np.save("pt_files/simple_spread_rewards.npy", np.asarray(all_rewards, dtype=np.float32))
+    np.save("pt_files/simple_spread_success.npy", np.asarray(all_coords, dtype=np.float32))
     print("DONE")
 
 

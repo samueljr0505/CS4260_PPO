@@ -1,8 +1,5 @@
 import numpy as np
 
-
-import numpy as np
-
 def success_rate(obs_dict, num_landmarks=3, threshold=0.2):
     """
     Success = every landmark is within `threshold`
