@@ -1,5 +1,5 @@
 import os
-
+import sys
 import numpy as np
 import torch
 
@@ -61,16 +61,21 @@ def _coverage_bonus(obs_dict, agents, threshold=0.15, bonus=1.0):
 
     return total
 
+
 def set_seed(seed):
     np.random.seed(seed)
     torch.manual_seed(seed)
 
 
-def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3):
+def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3,
+                    use_shaping=True):
     """
     Collect exactly `rollout_steps` environment steps.
     Supports both centralized critic (global state) and
-    ablation mode (local obs) via model.centralized flag.
+    ablation mode (local obs) via model.centralized_critic flag.
+
+    Args:
+        use_shaping: if False, disables reward shaping (shaping ablation)
     """
     obs_dict, _ = env.reset()
     episode_reward = 0.0
@@ -117,7 +122,12 @@ def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3):
         next_obs, rewards, terminations, truncations, _ = env.step(action_dict)
         done = any(terminations.values()) or any(truncations.values())
         team_reward = float(sum(rewards.values()))
-        shaped_reward = team_reward + _coverage_bonus(next_obs, env.agents)
+
+        # Apply shaping only if enabled — disabled for shaping ablation
+        if use_shaping:
+            shaped_reward = team_reward + _coverage_bonus(next_obs, env.agents)
+        else:
+            shaped_reward = team_reward
 
         # Buffer stores critic_input (state or obs) not always global state
         for obs, action, logprob in zip(cached_obs, cached_actions, cached_logprobs):
@@ -133,7 +143,7 @@ def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3):
 
         obs_dict = next_obs
         steps_collected += 1
-        episode_reward += team_reward  # raw reward for logging
+        episode_reward += team_reward  # always log raw reward, never shaped
         coord_log.append(success_rate(next_obs, num_landmarks=num_landmarks))
 
         if done:
@@ -157,6 +167,26 @@ def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3):
     return completed_rewards, mean_coord, last_critic_input, last_truncated
 
 
+def get_run_label(ablation_critic, ablation_shaping):
+    """
+    Returns (human_label, file_suffix) for the current run mode.
+
+    Modes:
+        full                 — centralized critic + reward shaping (default)
+        ablation_critic      — local critic only, shaping on
+        ablation_shaping     — centralized critic, shaping off
+        ablation_both        — both ablated
+    """
+    if not ablation_critic and not ablation_shaping:
+        return "Full MAPPO", "mappo_full"
+    elif ablation_critic and not ablation_shaping:
+        return "Ablation: Local Critic", "ablation_critic"
+    elif not ablation_critic and ablation_shaping:
+        return "Ablation: No Shaping", "ablation_shaping"
+    else:
+        return "Ablation: No Critic + No Shaping", "ablation_both"
+
+
 def train(
     seed,
     num_agents=3,
@@ -166,10 +196,13 @@ def train(
     max_cycles=25,
     ppo_epochs=15,
     batch_size=256,
-    return_model = False,
-    ablation=False,
+    return_model=False,
+    ablation_critic=False,   # True = local obs for critic (no global state)
+    ablation_shaping=False,  # True = no coverage bonus
 ):
     set_seed(seed)
+
+    label, suffix = get_run_label(ablation_critic, ablation_shaping)
 
     env = simple_spread_v3.parallel_env(
         N=num_agents,
@@ -181,25 +214,38 @@ def train(
     obs_dict, _ = env.reset(seed=seed)
     first_agent = env.agents[0]
 
-    obs_dim = obs_dict[first_agent].shape[0]
+    obs_dim   = obs_dict[first_agent].shape[0]
     state_dim = np.asarray(env.state()).shape[0]
-    act_dim = int(env.action_space(first_agent).n)
+    act_dim   = int(env.action_space(first_agent).n)
 
-    model = MultiAgentActorCritic(obs_dim=obs_dim, act_dim=act_dim, state_dim=state_dim, centralized_critic=not ablation)
-    ppo = MultiAgentPPO(model, actor_lr=3e-4, critic_lr=1e-3, total_updates=updates, entropy_final=0.003)
+    model = MultiAgentActorCritic(
+        obs_dim=obs_dim,
+        act_dim=act_dim,
+        state_dim=state_dim,
+        centralized_critic=not ablation_critic,
+    )
+    ppo    = MultiAgentPPO(model, actor_lr=3e-4, critic_lr=1e-3,
+                           total_updates=updates, entropy_final=0.003)
     buffer = MultiAgentRolloutBuffer()
 
-    episode_rewards_log = []  # mean reward per completed episode per update
-    coordination_log = []
+    episode_rewards_log = []
+    coordination_log    = []
+
+    print(f"\n{'='*60}")
+    print(f"Mode:               {label}")
+    print(f"Seed:               {seed}  |  Updates: {updates}")
+    print(f"Centralized critic: {not ablation_critic}  |  "
+          f"Reward shaping: {not ablation_shaping}")
+    print(f"{'='*60}")
 
     for update_idx in range(updates):
         completed_rewards, coord, last_state, last_truncated = collect_rollout(
             env, model, buffer,
             rollout_steps=rollout_steps,
             num_landmarks=num_landmarks,
+            use_shaping=not ablation_shaping,
         )
 
-        # Pass next_state so PPO can bootstrap if rollout ended mid-episode
         ppo.update(
             buffer,
             next_state=last_state if last_truncated else torch.zeros_like(last_state),
@@ -215,7 +261,7 @@ def train(
         if update_idx % 10 == 0:
             trailing = episode_rewards_log[-10:]
             print(
-                f"[Seed {seed}] "
+                f"[{suffix}][Seed {seed}] "
                 f"Update {update_idx:04d} | "
                 f"MeanEpReward: {mean_ep_reward:.3f} | "
                 f"Avg10: {np.mean(trailing):.3f} | "
@@ -224,28 +270,89 @@ def train(
 
     env.close()
 
+    # Save model checkpoint with mode suffix so files never overwrite each other
     os.makedirs("pt_files", exist_ok=True)
-    torch.save(model.state_dict(), f"pt_files/model_seed{seed}.pt")
-    print(f"Saved model to pt_files/model_seed{seed}.pt")
+    model_path = f"pt_files/model_{suffix}_seed{seed}.pt"
+    torch.save(model.state_dict(), model_path)
+    print(f"Saved model → {model_path}")
 
     if return_model:
         return episode_rewards_log, coordination_log, model
     return episode_rewards_log, coordination_log
 
 
-def main():
-    all_rewards = []
-    all_coords = []
+def save_results(all_rewards, all_coords, suffix):
+    """Saves reward and success rate arrays to runs/ with the mode suffix."""
+    os.makedirs("runs", exist_ok=True)
+    r_path = f"runs/simple_spread_rewards_{suffix}.npy"
+    s_path = f"runs/simple_spread_success_{suffix}.npy"
+    np.save(r_path, np.asarray(all_rewards, dtype=np.float32))
+    np.save(s_path, np.asarray(all_coords,  dtype=np.float32))
+    print(f"Saved → {r_path}")
+    print(f"Saved → {s_path}")
 
-    for seed in [0, 1, 2]:
-        rewards, coords = train(seed=seed)
+
+def main():
+    """
+    Selects run mode from command line argument.
+
+    Usage:
+        python train.py                   →  full MAPPO (default)
+        python train.py full              →  full MAPPO
+        python train.py ablation_critic   →  local critic, shaping on
+        python train.py ablation_shaping  →  centralized critic, shaping off
+        python train.py ablation_both     →  both ablated
+
+    Output files are named automatically based on mode:
+        runs/simple_spread_rewards_mappo_full.npy
+        runs/simple_spread_rewards_ablation_critic.npy
+        runs/simple_spread_rewards_ablation_shaping.npy
+        runs/simple_spread_rewards_ablation_both.npy
+    """
+    seeds = [0, 1, 2]
+
+    mode = sys.argv[1] if len(sys.argv) > 1 else "full"
+
+    mode_configs = {
+        "full": {
+            "ablation_critic":  False,
+            "ablation_shaping": False,
+        },
+        "ablation_critic": {
+            "ablation_critic":  True,
+            "ablation_shaping": False,
+        },
+        "ablation_shaping": {
+            "ablation_critic":  False,
+            "ablation_shaping": True,
+        },
+        "ablation_both": {
+            "ablation_critic":  True,
+            "ablation_shaping": True,
+        },
+    }
+
+    if mode not in mode_configs:
+        print(f"Unknown mode '{mode}'.")
+        print(f"Choose from: {list(mode_configs.keys())}")
+        sys.exit(1)
+
+    cfg = mode_configs[mode]
+    _, suffix = get_run_label(cfg["ablation_critic"], cfg["ablation_shaping"])
+
+    print(f"\nRunning: {mode}  →  suffix = '{suffix}'")
+    print(f"Seeds: {seeds}\n")
+
+    all_rewards = []
+    all_coords  = []
+
+    for seed in seeds:
+        rewards, coords = train(seed=seed, **cfg)
         all_rewards.append(rewards)
         all_coords.append(coords)
 
-    os.makedirs("pt_files", exist_ok=True)
-    np.save("pt_files/simple_spread_rewards.npy", np.asarray(all_rewards, dtype=np.float32))
-    np.save("pt_files/simple_spread_success.npy", np.asarray(all_coords, dtype=np.float32))
-    print("DONE")
+    save_results(all_rewards, all_coords, suffix)
+    print("\nDONE")
 
 
 if __name__ == "__main__":
