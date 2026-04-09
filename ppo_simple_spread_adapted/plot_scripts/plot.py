@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-RUNS_DIR = "runs"
-PLOTS_DIR = "plots"
+RUNS_DIR = "../runs"
+PLOTS_DIR = "../plots"
 
 
 def load_runs(path):

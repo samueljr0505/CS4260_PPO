@@ -2,8 +2,8 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 
-RUNS_DIR = "runs"
-PLOTS_DIR = "plots"
+RUNS_DIR = "../runs"
+PLOTS_DIR = "../plots"
 
 
 def load(path):
