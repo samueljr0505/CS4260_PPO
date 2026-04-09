@@ -1,70 +1,118 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import os
 
+# =========================
+# CONFIG
+# =========================
 seeds = [0, 1, 2]
+window = 50
+save_dir = "runs"
+os.makedirs(save_dir, exist_ok=True)
 
 # =========================
-# LOAD REWARDS
+# HELPERS
 # =========================
-all_rewards = []
-for s in seeds:
-    r = np.load(f"runs/rewards_seed{s}.npy")
-    all_rewards.append(r)
+def rolling_mean_std(x, window=50):
+    x = np.asarray(x)
 
-min_len_r = min(len(r) for r in all_rewards)
-all_rewards = [r[:min_len_r] for r in all_rewards]
+    if len(x) < window:
+        raise ValueError("Window larger than data length")
+
+    mean = np.convolve(x, np.ones(window) / window, mode="valid")
+
+    std = np.array([
+        np.std(x[i - window:i]) if i >= window else np.nan
+        for i in range(len(x))
+    ])[window - 1:]
+
+    return mean, std
+
+
+def load_and_align(file_prefix):
+    data = []
+
+    for s in seeds:
+        arr = np.load(f"{file_prefix}_seed{s}.npy")
+        data.append(arr)
+
+    min_len = min(len(x) for x in data)
+    data = [x[:min_len] for x in data]
+
+    return np.array(data)
+
+
+# =========================
+# LOAD DATA
+# =========================
+all_rewards = load_and_align("runs/rewards")
+all_vel = load_and_align("runs/velocity")
 
 reward_mean = np.mean(all_rewards, axis=0)
-reward_std = np.std(all_rewards, axis=0)
-
-# =========================
-# LOAD VELOCITY
-# =========================
-all_vel = []
-for s in seeds:
-    v = np.load(f"runs/velocity_seed{s}.npy")
-    all_vel.append(v)
-
-min_len_v = min(len(v) for v in all_vel)
-all_vel = [v[:min_len_v] for v in all_vel]
-
 vel_mean = np.mean(all_vel, axis=0)
-vel_std = np.std(all_vel, axis=0)
+
+# =========================
+# ROLLING STATS
+# =========================
+reward_roll_mean, reward_roll_std = rolling_mean_std(reward_mean, window)
+vel_roll_mean, vel_roll_std = rolling_mean_std(vel_mean, window)
 
 # =========================
 # PLOT 1: REWARD
 # =========================
-plt.figure()
-plt.plot(reward_mean, label="Mean Reward")
+plt.figure(figsize=(10, 5))
+
+# per-seed curves (important for papers)
+for r in all_rewards:
+    plt.plot(r, alpha=0.2)
+
+x = np.arange(len(reward_roll_mean))
+
+plt.plot(x, reward_roll_mean, label=f"Rolling Mean (window={window})", linewidth=2)
+
 plt.fill_between(
-    range(len(reward_mean)),
-    reward_mean - reward_std,
-    reward_mean + reward_std,
-    alpha=0.3
+    x,
+    reward_roll_mean - reward_roll_std,
+    reward_roll_mean + reward_roll_std,
+    alpha=0.25
 )
 
 plt.title("PPO HalfCheetah-v5 - Episode Return")
 plt.xlabel("Episode")
 plt.ylabel("Return")
+plt.grid(True, alpha=0.3)
 plt.legend()
-plt.savefig("runs/reward_plot.png")
+
+plt.savefig(f"{save_dir}/reward_plot.png", dpi=300, bbox_inches="tight")
 plt.show()
+
 
 # =========================
 # PLOT 2: VELOCITY
 # =========================
-plt.figure()
-plt.plot(vel_mean, label="Mean Forward Velocity")
+plt.figure(figsize=(10, 5))
+
+for v in all_vel:
+    plt.plot(v, alpha=0.2)
+
+x = np.arange(len(vel_roll_mean))
+
+plt.plot(x, vel_roll_mean, label=f"Rolling Mean (window={window})", linewidth=2)
+
 plt.fill_between(
-    range(len(vel_mean)),
-    vel_mean - vel_std,
-    vel_mean + vel_std,
-    alpha=0.3
+    x,
+    vel_roll_mean - vel_roll_std,
+    vel_roll_mean + vel_roll_std,
+    alpha=0.25
 )
 
-plt.title("PPO HalfCheetah-v5 - Forward Velocity (Success Metric)")
+plt.title("PPO HalfCheetah-v5 - Forward Velocity Proxy")
 plt.xlabel("Episode")
-plt.ylabel("Velocity Proxy (x-final - x-start)")
+plt.ylabel("Velocity")
+plt.grid(True, alpha=0.3)
 plt.legend()
-plt.savefig("runs/velocity_plot.png")
+
+plt.savefig(f"{save_dir}/velocity_plot.png", dpi=300, bbox_inches="tight")
 plt.show()
+
+print("Done. Saved plots to runs/")
