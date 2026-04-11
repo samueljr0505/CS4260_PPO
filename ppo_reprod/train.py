@@ -61,7 +61,7 @@ def train(seed):
     ep_reward = 0
     x_positions = []
 
-    total_steps = 1_000_000
+    total_steps = 5_000_000
 
     for step in range(total_steps):
 
