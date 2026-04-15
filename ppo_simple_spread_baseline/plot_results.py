@@ -90,10 +90,10 @@ def plot_with_seeds(values, title, xlabel, ylabel, filename, y_lim=None):
 # =========================
 plot_with_seeds(
     all_rewards,
-    title="PPO Simple Spread - Reward",
+    title="PPO Unmodified Simple Spread - Reward",
     xlabel="Episode",
     ylabel="Episode Reward",
-    filename="plots/simple_spread_reward.png",
+    filename="plots/simple_spread_reward_discrete.png",
 )
 
 # =========================
@@ -101,10 +101,10 @@ plot_with_seeds(
 # =========================
 plot_with_seeds(
     all_coord,
-    title="PPO Simple Spread - Success Rate",
+    title="PPO Unmodified Simple Spread - Success Rate",
     xlabel="Episode",
     ylabel="Success Rate (0 → 1)",
-    filename="plots/simple_spread_success.png",
+    filename="plots/simple_spread_success_discrete.png",
     y_lim=(0, 0.6),
 )
 

@@ -1,58 +1,36 @@
-import torch
 import torch.nn as nn
+from torch.distributions import Categorical
+
 
 class ActorCritic(nn.Module):
     def __init__(self, obs_dim, act_dim):
         super().__init__()
 
-        self.shared = nn.Sequential(
-            nn.Linear(obs_dim, 256),
-            nn.Tanh(),
-            nn.Linear(256, 256),
-            nn.Tanh()
-        )
-
         self.actor = nn.Sequential(
-            nn.Linear(256, 128),
+            nn.Linear(obs_dim, 128),
+            nn.Tanh(),
+            nn.Linear(128, 128),
             nn.Tanh(),
             nn.Linear(128, act_dim)
         )
 
         self.critic = nn.Sequential(
-            nn.Linear(256, 128),
+            nn.Linear(obs_dim, 128),
+            nn.Tanh(),
+            nn.Linear(128, 128),
             nn.Tanh(),
             nn.Linear(128, 1)
         )
 
-        self.log_std = nn.Parameter(torch.zeros(act_dim))
+    def get_dist(self, obs):
+        logits = self.actor(obs)
+        return Categorical(logits=logits)
 
     def get_action(self, obs):
-        x = self.shared(obs)
-
-        mean = self.actor(x)
-        std = torch.exp(self.log_std)
-
-        dist = torch.distributions.Normal(mean, std)
-
+        dist = self.get_dist(obs)
         action = dist.sample()
-
-        # FIX: keep bounded for MPE env
-        action = torch.sigmoid(action)
-
-        logprob = dist.log_prob(action).sum(-1)
-
+        logprob = dist.log_prob(action)
         return action, logprob
 
-    def evaluate(self, obs, action):
-        x = self.shared(obs)
-
-        mean = self.actor(x)
-        std = torch.exp(self.log_std)
-
-        dist = torch.distributions.Normal(mean, std)
-
-        logprob = dist.log_prob(action).sum(-1)
-        entropy = dist.entropy().sum(-1)
-        value = self.critic(x).squeeze(-1)
-
-        return logprob, value, entropy
+    def value(self, obs):
+        return self.critic(obs).squeeze(-1)

@@ -1,21 +1,17 @@
 import numpy as np
 import torch
-import gymnasium as gym
-from pettingzoo.mpe import simple_spread_v3
-import sys, os
+import os
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pettingzoo.mpe import simple_spread_v3
 
 from model import ActorCritic
-from ppo_reprod.ppo import PPO
-from ppo_reprod.buffer import RolloutBuffer
+from ppo import PPO
+from buffer import RolloutBuffer
 from utils import success_rate
 
 
-# -----------------------------
-# ROLLOUT
-# -----------------------------
 def run_episode(env, model, buffer, max_steps=25):
+
     obs_dict, _ = env.reset()
     agents = env.agents
 
@@ -24,6 +20,7 @@ def run_episode(env, model, buffer, max_steps=25):
     for _ in range(max_steps):
 
         actions = {}
+
         obs_list = []
         action_list = []
         logprob_list = []
@@ -33,11 +30,9 @@ def run_episode(env, model, buffer, max_steps=25):
             obs = torch.tensor(obs_dict[a], dtype=torch.float32)
 
             action, logprob = model.get_action(obs)
-            value = model.critic(model.shared(obs)).squeeze(-1)
+            value = model.value(obs)
 
-            action = torch.clamp(action, -1.0, 1.0)
-
-            actions[a] = action.detach().numpy()
+            actions[a] = int(action.item())
 
             obs_list.append(obs)
             action_list.append(action)
@@ -47,46 +42,51 @@ def run_episode(env, model, buffer, max_steps=25):
         next_obs, rewards, terminations, truncations, _ = env.step(actions)
 
         done = any(terminations.values()) or any(truncations.values())
-        reward = sum(rewards.values())
+        reward = torch.tensor(sum(rewards.values()), dtype=torch.float32)
 
-        for obs, action, logprob, value in zip(
-            obs_list, action_list, logprob_list, value_list
-        ):
+        for i in range(len(agents)):
             buffer.add(
-                obs.detach(),
-                action.detach(),
-                logprob.detach(),
-                torch.tensor(reward, dtype=torch.float32),
+                obs_list[i],
+                action_list[i],
+                logprob_list[i],
+                reward,
                 done,
-                value.detach()
+                value_list[i]
             )
 
         obs_dict = next_obs
-        ep_reward += reward
+        ep_reward += reward.item()
 
         if done:
             break
 
-    return ep_reward, obs_dict
+    # bootstrap value
+    next_value = torch.tensor(0.0)
 
-# -----------------------------
-# TRAIN
-# -----------------------------
+    if not done:
+        first_agent = agents[0]
+        obs = torch.tensor(obs_dict[first_agent], dtype=torch.float32)
+        next_value = model.value(obs)
+
+    return ep_reward, obs_dict, next_value
+
+
 def train(seed):
+
     np.random.seed(seed)
     torch.manual_seed(seed)
 
     env = simple_spread_v3.parallel_env(
         N=3,
         max_cycles=25,
-        continuous_actions=True
+        continuous_actions=False
     )
 
     obs_dict, _ = env.reset()
     agents = env.agents
 
     obs_dim = obs_dict[agents[0]].shape[0]
-    act_dim = env.action_space(agents[0]).shape[0]
+    act_dim = env.action_space(agents[0]).n
 
     model = ActorCritic(obs_dim, act_dim)
     ppo = PPO(model)
@@ -95,40 +95,35 @@ def train(seed):
     rewards_log = []
     coord_log = []
 
-    for episode in range(1000):
+    for episode in range(500):
 
-        ep_reward, obs_dict = run_episode(env, model, buffer)
+        ep_reward, obs_dict, next_value = run_episode(env, model, buffer)
 
-        ppo.update(buffer)
+        ppo.update(buffer, next_value)
         buffer.clear()
 
         rewards_log.append(ep_reward)
         coord_log.append(success_rate(obs_dict))
 
         if episode % 20 == 0:
-            print(
-                f"[Seed {seed}] Ep {episode} | "
-                f"Reward: {ep_reward:.2f} | "
-                f"Coord: {coord_log[-1]:.3f}"
-            )
+            print(f"[Seed {seed}] Episode {episode} | Reward {ep_reward:.2f}")
 
     return rewards_log, coord_log
 
 
-# -----------------------------
-# RUN 3 SEEDS
-# -----------------------------
-all_rewards = []
-all_coords = []
+if __name__ == "__main__":
 
-for seed in [0, 1, 2]:
-    r, c = train(seed)
-    all_rewards.append(r)
-    all_coords.append(c)
+    all_rewards = []
+    all_coords = []
 
-os.makedirs("runs", exist_ok=True)
+    for seed in [0, 1, 2]:
+        r, c = train(seed)
+        all_rewards.append(r)
+        all_coords.append(c)
 
-np.save("runs/simple_spread_rewards.npy", np.array(all_rewards))
-np.save("runs/simple_spread_coord.npy", np.array(all_coords))
+    os.makedirs("runs", exist_ok=True)
 
-print("DONE")
+    np.save("runs/simple_spread_rewards.npy", np.array(all_rewards))
+    np.save("runs/simple_spread_coord.npy", np.array(all_coords))
+
+    print("DONE")

@@ -57,7 +57,7 @@ def run_random_baseline(n_episodes=500, seeds=[0, 1, 2]):
         env = simple_spread_v3.parallel_env(
             N=3,
             max_cycles=25,
-            continuous_actions=True
+            continuous_actions=False
         )
         env.reset(seed=seed)
 
