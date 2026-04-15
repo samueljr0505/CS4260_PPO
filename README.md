@@ -38,11 +38,13 @@ CS4260_Final_Project_PPO/
 │
 ├── ppo_simple_spread_baseline/       # Phase 2a: Unmodified PPO on Simple Spread
 │   ├── train_simple_spread.py        # Naive single-agent PPO baseline
-│   ├── model.py                      # Standard ActorCritic
+│   ├── model.py                      # Standard ActorCritic, discrete
 │   ├── utils.py                      # success_rate metric
 |   ├── random_baseline.py            # random baseline script to compare training with
 |   ├── plot_results.py               # plotting script for baseline
-|   ├── plots/                        # all plots from scripts 
+|   ├── plots/                        # all plots from scripts
+|   ├── buffer.py                     # Rollout Buffer 
+|   ├── ppo.py                        # PPO unmodified 
 │   └── runs/                         # Baseline results
 │
 ├── ppo_simple_spread_adapted/        # Phase 2b: MAPPO adaptation
