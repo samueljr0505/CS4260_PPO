@@ -56,34 +56,17 @@ CS4260_Final_Project_PPO/
 │   ├── evaluate.py                   # Validation on held-out seeds
 │   ├── render_demo.py                # GIF demo generation
 │   │
-│   ├── runs/                         # Training results
-│   │   ├── simple_spread_rewards2.npy          # Full MAPPO rewards
-│   │   ├── simple_spread_coord2.npy            # Full MAPPO success rate
-│   │   ├── simple_spread_reward_ablation.npy   # Local critic ablation
-│   │   ├── simple_spread_success_ablation.npy
-│   │   ├── simple_spread_reward_ablation_shaping.npy  # No shaping ablation
-│   │   ├── simple_spread_success_ablation_shaping.npy
-│   │   └── validation_results.npy              # Held-out validation
+│   ├── runs/                         # Training results, all types
+│   │ 
 │   │
 │   ├── pt_files/                     # Saved model checkpoints
-│   │   ├── model_seed0.pt
-│   │   ├── model_seed1.pt
-│   │   └── model_seed2.pt
+│   │
 │   │
 │   ├── plots/                        # All generated figures
-│   │   ├── simple_spread_reward2.png
-│   │   ├── simple_spread_success2.png
-│   │   ├── validation_reward.png
-│   │   ├── validation_success.png
-│   │   ├── ablation_critic_reward.png
-│   │   ├── ablation_critic_success.png
-│   │   ├── ablation_shaping_reward.png
-│   │   ├── ablation_shaping_success.png
-│   │   ├── ablation_threeway_reward.png
-│   │   └── ablation_threeway_success.png
+│   │ 
 │   │
 │   ├── demos/
-│   │   └── demo_navigation.gif       # Qualitative agent behavior demo
+│   │   └── demo_navigation_adapted.gif       # Qualitative agent behavior demo
 │   │
 │   └── plot_scripts/
 │       ├── plot.py                   # Training curve plots
@@ -274,13 +257,13 @@ Searches 1000 seeds to find an episode where landmarks are well separated and al
 
 ## Environment Details
 
-| Setting | Canonical (HalfCheetah) | Baseline | Adapted MAPPO |
-|---|---|---|---|
-| Environment | HalfCheetah-v5 | Simple Spread | Simple Spread |
-| Action space | Continuous | Continuous | Discrete |
+| Setting | Canonical (HalfCheetah) | Baseline        | Adapted MAPPO |
+|---|---|-----------------|---|
+| Environment | HalfCheetah-v5 | Simple Spread   | Simple Spread |
+| Action space | Continuous | Discrete        | Discrete |
 | Agents | 1 | 3 (independent) | 3 (coordinated) |
-| Critic input | Local obs | Local obs | Global state |
-| Reward shaping | No | No | Yes |
+| Critic input | Local obs | Local obs       | Global state |
+| Reward shaping | No | No              | Yes |
 
 ---
 
@@ -288,27 +271,29 @@ Searches 1000 seeds to find an episode where landmarks are well separated and al
 
 ### Training Performance (mean over last 50 updates, 3 seeds)
 
-| Condition | Reward | Success Rate |
-|---|---|---|
-| Baseline (unmodified PPO) | ~-80 (no learning) | ~0.10 (no trend) |
-| Full MAPPO | -110.5 | 0.221 |
-| Ablation: local critic | -111.9 | 0.199 |
-| Ablation: no shaping | -120.5 | ~0.10 |
+| Condition | Reward              | Success Rate     |
+|---|---------------------|------------------|
+| Baseline (unmodified PPO) | ~-100 (no learning) | ~0.10 (no trend) |
+| Full MAPPO | -32                 | ~0.4             |
+| Ablation: local critic | ~ -32.6             | ~0.37            |
+| Ablation: no shaping | -39                 | ~0.15            |
 
 ### Validation (100 episodes, held-out seeds)
 
-| Metric | Training | Validation | Gap |
-|---|---|---|---|
-| Reward | -110.5 | -115.7 | 4.8% |
-| Success Rate | 0.221 | 0.191 | 13.6% |
+| Metric | Training | Validation | Gap  |
+|---|----------|-----------|------|
+| Reward | -32      | -30.6     | 1.4  |
+| Success Rate | ~0.39    | 0.415     | 0.025 |
 
 ---
 
 ## Known Limitations
 
-**Clustering behavior**: Agents occasionally converge on nearby landmarks while leaving a distant landmark uncovered. This occurs because agents act on local observations at execution time and cannot observe whether a teammate has already claimed a landmark. This is a known limitation of decentralized execution in MAPPO and is expected behavior at this training scale. Addressing it fully would require explicit communication protocols or role assignment mechanisms, which are identified as future work.
+**Clustering behavior**: Agents occasionally converge on nearby landmarks while leaving other landmarks uncovered, resulting in inconsistent one-to-one assignment behavior. This failure mode arises because coordination is learned implicitly through shared reward rather than enforced explicitly. While the reward shaping encourages proximity to landmarks, it does not enforce a matching constraint between agents and landmarks, so multiple agents may still attend the same target when it is locally optimal under their individual policies. This reflects a fundamental limitation of decentralized execution in MAPPO: agents act purely on local observations and cannot directly condition on whether a teammate has already committed to a landmark.
 
-**Small centralized critic gap**: The centralized critic produces a consistent but modest improvement (1.4 reward points, 0.021 success rate) over a local critic. This is consistent with the Simple Spread environment where each agent's local observation already encodes the positions of all landmarks and other agents, limiting the information gain from global state access. The benefit of centralization would be more pronounced in larger environments with more agents or true partial observability.
+**Partial effectiveness of reward shaping**:The reward shaping improves overall performance and encourages landmark coverage, but does not fully resolve assignment ambiguity. In particular, it biases agents toward “greedy attraction” to nearby landmarks rather than coordinated partitioning of the space. This explains why performance improves in aggregate (higher success rate and reward), while coordination errors such as clustering persist. The shaping signal is therefore helpful but insufficient to induce strict one-to-one matching behavior.
+
+**Limited marginal benefit of centralized critic**: The centralized critic yields a consistent but modest improvement in performance (approximately +1.4 reward, +0.025 success rate). This limited gain is expected in the Simple Spread environment, where each agent’s local observation already includes most relevant information about other agents and landmarks. As a result, the problem is only weakly partially observable, reducing the advantage of centralized value estimation. The benefit of centralization would likely become more pronounced in larger-scale settings with more agents, increased occlusion, or stricter partial observability constraints.
 
 ---
 
