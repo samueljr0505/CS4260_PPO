@@ -123,12 +123,12 @@ def main():
     os.makedirs(PLOTS_DIR, exist_ok=True)
 
     # Load training data
-    train_rewards = load_runs(os.path.join(RUNS_DIR, "simple_spread_rewards2.npy"))
-    train_success = load_runs(os.path.join(RUNS_DIR, "simple_spread_coord2.npy"))
+    train_rewards = load_runs(os.path.join(RUNS_DIR, "simple_spread_rewards_mappo_full.npy"))
+    train_success = load_runs(os.path.join(RUNS_DIR, "simple_spread_success_mappo_full.npy"))
 
     # Load validation results saved by evaluate.py
     val_results = np.load(
-        os.path.join(RUNS_DIR, "validation_results.npy"),
+        os.path.join(RUNS_DIR, "validation_results_adapted.npy"),
         allow_pickle=True
     ).tolist()
 

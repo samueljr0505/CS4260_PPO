@@ -231,7 +231,7 @@ def main():
 
     model = MultiAgentActorCritic(obs_dim=obs_dim, act_dim=act_dim,
                                    state_dim=state_dim)
-    checkpoint = torch.load("pt_files/model_seed0.pt", map_location="cpu")
+    checkpoint = torch.load("pt_files/model_mappo_full_seed1.pt", map_location="cpu")
     model.load_state_dict(checkpoint)
     print("Loaded model from pt_files/model_seed2.pt")
 
@@ -252,7 +252,7 @@ def main():
 
     save_gif(
         frames_list[0],
-        path="demos/demo2.gif",
+        path="demos/demo.gif",
         fps=8,  # slightly slower so movement is clearly visible
     )
 

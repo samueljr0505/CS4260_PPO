@@ -7,6 +7,9 @@ try:
 except ImportError:
     from pettingzoo.mpe import simple_spread_v3
 
+RUNS_DIR = "pt_files"
+SUFFIX = "mappo_full"
+
 from model import MultiAgentActorCritic
 from utils import success_rate
 
@@ -65,7 +68,7 @@ def evaluate_model(model, num_episodes=100, seed=999, num_agents=3,
         next_obs, rewards, terminations, truncations, _ = env.step(action_dict)
         done = any(terminations.values()) or any(truncations.values())
 
-        episode_reward += float(sum(rewards.values()))
+        episode_reward += float(next(iter(rewards.values())))
         step_success.append(success_rate(next_obs, num_landmarks=num_landmarks))
 
         if done:
@@ -92,38 +95,60 @@ def evaluate_model(model, num_episodes=100, seed=999, num_agents=3,
     }
 
 
-def run_validation(seeds=(0, 1, 2), num_agents=3, num_landmarks=3,
-                   updates=300, rollout_steps=4096, max_cycles=25,
-                   ppo_epochs=15, batch_size=256, eval_episodes=100):
-    """
-    Retrain each seed from scratch then immediately evaluate on held-out episodes.
-    Saves validation results to runs/validation_results.npy
-    """
-    # Import here to avoid circular imports
-    from train import train
+def run_validation(
+    seeds=(0, 1, 2),
+    num_agents=3,
+    num_landmarks=3,
+    eval_episodes=100,
+    max_cycles=25
+):
 
     all_eval = []
 
+    # -----------------------------
+    # CREATE ENV TO GET DIMS
+    # -----------------------------
+    env = simple_spread_v3.parallel_env(
+        N=num_agents,
+        max_cycles=max_cycles,
+        continuous_actions=False,
+        local_ratio=0.0,
+    )
+
+    obs_dict, _ = env.reset()
+
+    obs_dim = list(obs_dict.values())[0].shape[0]
+    act_dim = env.action_space(env.possible_agents[0]).n
+    state_dim = obs_dim * num_agents
+
+    env.close()
+
     for seed in seeds:
+        model_path = os.path.join(RUNS_DIR, f"model_{SUFFIX}_seed{seed}.pt")
+
         print(f"\n{'=' * 50}")
-        print(f"Training seed {seed} for validation...")
+        print(f"Loading model: {model_path}")
         print(f"{'=' * 50}")
 
-        rewards_log, coord_log, model = train(
-            seed=seed,
-            num_agents=num_agents,
-            num_landmarks=num_landmarks,
-            updates=updates,
-            rollout_steps=rollout_steps,
-            max_cycles=max_cycles,
-            ppo_epochs=ppo_epochs,
-            batch_size=batch_size,
-            return_model=True,  # we add this flag below
+        # -----------------------------
+        # BUILD MODEL CORRECTLY
+        # -----------------------------
+        model = MultiAgentActorCritic(
+            obs_dim=obs_dim,
+            act_dim=act_dim,
+            state_dim=state_dim,
+            centralized_critic=True
         )
 
-        # Evaluate on a held-out seed (training seeds + 999 offset)
+        state_dict = torch.load(model_path, map_location=torch.device("cpu"))
+        model.load_state_dict(state_dict)
+        model.eval()
+
+        # -----------------------------
+        # EVALUATE
+        # -----------------------------
         eval_seed = 999 + seed
-        print(f"Evaluating seed {seed} on held-out env seed {eval_seed}...")
+
         results = evaluate_model(
             model,
             num_episodes=eval_episodes,
@@ -138,20 +163,21 @@ def run_validation(seeds=(0, 1, 2), num_agents=3, num_landmarks=3,
             f"Reward: {results['mean_reward']:.3f} ± {results['std_reward']:.3f} | "
             f"Success: {results['mean_success']:.3f} ± {results['std_success']:.3f}"
         )
+
         all_eval.append(results)
 
-    # Summary across seeds
-    print(f"\n{'=' * 50}")
-    print("VALIDATION SUMMARY (across all seeds)")
-    print(f"{'=' * 50}")
+    print("\nVALIDATION SUMMARY")
     rewards = [e["mean_reward"] for e in all_eval]
     success = [e["mean_success"] for e in all_eval]
-    print(f"Reward:       {np.mean(rewards):.3f} ± {np.std(rewards):.3f}")
+
+    print(f"Reward: {np.mean(rewards):.3f} ± {np.std(rewards):.3f}")
     print(f"Success Rate: {np.mean(success):.3f} ± {np.std(success):.3f}")
 
-    os.makedirs("runs", exist_ok=True)
-    np.save("runs/validation_results.npy", np.array(all_eval, dtype=object), allow_pickle=True)
-    print("\nSaved to runs/validation_results.npy")
+    np.save(
+        "runs/validation_results_adapted.npy",
+        np.array(all_eval, dtype=object),
+        allow_pickle=True
+    )
 
     return all_eval
 

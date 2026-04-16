@@ -32,7 +32,7 @@ def plot_ablation(adapted, ablation, ylabel, title, output_path, window=20):
     adapted_std   = adapted.std(axis=0)
     ablation_std  = ablation.std(axis=0)
 
-    # 🔥 MATCH PLOT SIGNAL (IMPORTANT FIX)
+    # MATCH PLOT SIGNAL (IMPORTANT FIX)
     adapted_roll  = rolling(adapted_mean, window)
     ablation_roll = rolling(ablation_mean, window)
 
@@ -111,7 +111,7 @@ def plot_three_way(adapted, abl_critic, abl_shaping,
     critic_std    = abl_critic.std(axis=0)
     shaping_std   = abl_shaping.std(axis=0)
 
-    # 🔥 FIXED consistency
+    # FIXED consistency
     adapted_roll = rolling(adapted_mean, window)
     critic_roll  = rolling(critic_mean, window)
     shaping_roll = rolling(shaping_mean, window)
@@ -176,13 +176,13 @@ def print_summary(adapted_r, ablation_r, adapted_s, ablation_s, label="Ablation"
 def main():
     os.makedirs(PLOTS_DIR, exist_ok=True)
 
-    adapted_rewards = load(os.path.join(RUNS_DIR, "simple_spread_rewards2.npy"))
-    adapted_success = load(os.path.join(RUNS_DIR, "simple_spread_coord2.npy"))
+    adapted_rewards = load(os.path.join(RUNS_DIR, "simple_spread_rewards_mappo_full.npy"))
+    adapted_success = load(os.path.join(RUNS_DIR, "simple_spread_success_mappo_full.npy"))
 
-    critic_rewards = load(os.path.join(RUNS_DIR, "simple_spread_reward_ablation.npy"))
-    critic_success = load(os.path.join(RUNS_DIR, "simple_spread_success_ablation.npy"))
+    critic_rewards = load(os.path.join(RUNS_DIR, "simple_spread_rewards_ablation_critic.npy"))
+    critic_success = load(os.path.join(RUNS_DIR, "simple_spread_success_ablation_critic.npy"))
 
-    shaping_rewards = load(os.path.join(RUNS_DIR, "simple_spread_reward_ablation_shaping.npy"))
+    shaping_rewards = load(os.path.join(RUNS_DIR, "simple_spread_rewards_ablation_shaping.npy"))
     shaping_success = load(os.path.join(RUNS_DIR, "simple_spread_success_ablation_shaping.npy"))
 
     plot_ablation(adapted_rewards, critic_rewards,

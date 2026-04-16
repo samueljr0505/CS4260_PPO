@@ -64,8 +64,8 @@ def main():
     os.makedirs(PLOTS_DIR, exist_ok=True)
 
     # Load data
-    rewards = load_runs(os.path.join(RUNS_DIR, "simple_spread_rewards2.npy"))
-    success = load_runs(os.path.join(RUNS_DIR, "simple_spread_coord2.npy"))
+    rewards = load_runs(os.path.join(RUNS_DIR, "simple_spread_rewards_mappo_full.npy"))
+    success = load_runs(os.path.join(RUNS_DIR, "simple_spread_success_mappo_full.npy"))
 
     # Reward plot
     plot_with_band(
@@ -73,7 +73,7 @@ def main():
         title="Multi-Agent PPO Simple Spread Reward",
         xlabel="Episode",
         ylabel="Episode Mean Reward",
-        output_path=os.path.join(PLOTS_DIR, "simple_spread_reward2.png"),
+        output_path=os.path.join(PLOTS_DIR, "simple_spread_reward.png"),
     )
 
     # Success rate plot
@@ -82,7 +82,7 @@ def main():
         title="Multi-Agent PPO Simple Spread Success Rate",
         xlabel="Episode",
         ylabel="Success Rate",
-        output_path=os.path.join(PLOTS_DIR, "simple_spread_success2.png"),
+        output_path=os.path.join(PLOTS_DIR, "simple_spread_success.png"),
     )
 
     print(f"Saved plots to {PLOTS_DIR}/")

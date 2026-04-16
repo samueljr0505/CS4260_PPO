@@ -121,8 +121,7 @@ def collect_rollout(env, model, buffer, rollout_steps, num_landmarks=3,
 
         next_obs, rewards, terminations, truncations, _ = env.step(action_dict)
         done = any(terminations.values()) or any(truncations.values())
-        team_reward = float(sum(rewards.values()))
-
+        team_reward = float(next(iter(rewards.values())))
         # Apply shaping only if enabled — disabled for shaping ablation
         if use_shaping:
             shaped_reward = team_reward + _coverage_bonus(next_obs, env.agents)
